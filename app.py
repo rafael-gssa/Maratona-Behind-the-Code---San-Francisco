@@ -5,6 +5,11 @@ import numpy as np
 import io
 from PIL import Image
 
+from base64 import b64encode, b64decode
+import requests
+from math import pi
+from watson_machine_learning_client import WatsonMachineLearningAPIClient
+
 app = Flask(__name__)
 app.config.from_object(__name__)
 port = int(os.getenv('PORT', 8080))
@@ -17,14 +22,38 @@ def hello():
 @app.route("/iot", methods=['GET'])
 def result():
     print(request)
-    
-    # Implemente sua lógica aqui e insira as respostas na variável 'resposta'
-    
+
+    api_key = 'a-y76ylb-ckj29x2v6b'
+    token = 'IoZc5eC_lxrtJdmi4O'
+    device_type = 'maratona'
+    device_id = 'd9'
+    event_id = 'sensor'
+
+    org_id = api_key.split('-')[1]
+
+    credentials = api_key + ':' + token
+    auth = b64encode(credentials.encode()).decode('ascii')
+
+    url = 'https://' + org_id + '.internetofthings.ibmcloud.com/api/v0002/device/types/' + device_type + '/devices/' + device_id + '/events/' + event_id
+    response = requests.get(url, headers = {
+        'Authorization': 'Basic ' + auth
+    })
+    payload = json.loads(b64decode(response.json()['payload']).decode('ascii'))
+
+    data = payload['data']
+    temperatura_celsius = data['temperatura']
+    umidade_ar = data['umidade_ar']
+    umidade_solo = data['umidade_solo']
+
+    temperatura_fahrenheit = temperatura_celsius * 1.8 + 32
+    itu = temperatura_celsius - 0.55 * (1 - umidade_ar) * (temperatura_celsius - 14)
+    volume_agua = umidade_solo * (4 / 3 * pi / 2)
+
     resposta = {
-        "iotData": "data",
-        "itu": "data",
-        "volumeAgua": "data",
-        "fahrenheit": "data"
+        "iotData": data,
+        "itu": itu,
+        "volumeAgua": volume_agua
+        "fahrenheit": temperatura_fahrenheit
     }
     response = app.response_class(
         response=json.dumps(resposta),
@@ -47,10 +76,22 @@ def predict():
     image = Image.open(io.BytesIO(image))
     image = prepare_image(image)
 
-    # Faça uma requisição para o serviço Watson Machine Learning aqui e retorne a classe detectada na variável 'resposta'
-    
+    classes = ['normal', 'praga']
+			
+    wml_credentials = {
+        'apikey': 'B-H331DpFRKwapGsKOLjOBrnShvRCOQxokLvTbqM2OTq',
+        'instance_id': '6d54ebaf-26c9-43a4-b69c-e9b8e30c138a',
+        'url': 'https://us-south.ml.cloud.ibm.com'
+    }
+    client = WatsonMachineLearningAPIClient(wml_credentials)
+
+    url = 'https://us-south.ml.cloud.ibm.com/v3/wml_instances/6d54ebaf-26c9-43a4-b69c-e9b8e30c138a/deployments/c1a44b0a-5106-45d5-bd2b-6c20aca51ab1/online'
+    response = client.deployments.score(url, {
+        'values': image
+    })
+	    		    
     resposta = {
-        "class": "data"
+        "class": classes[response['values'][0][1]]
     }
     return resposta
 

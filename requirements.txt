@@ -1,3 +1,5 @@
 Flask
 pillow
 numpy
+requests
+watson-machine-learning-client
